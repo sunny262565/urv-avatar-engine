@@ -19,6 +19,12 @@ async def health():
     return {"ok":True,"engine":"urv-avatar","renderer":os.getenv("URV_AVATAR_RENDERER","musetalk-v1.5"),
             "cuda":torch.cuda.is_available(),"gpu":torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}
 
+@app.get("/ping")
+async def ping():
+    return {"ok": True}
+
+
+
 @app.get("/admin/preparation-status")
 async def get_preparation_status(authorization: str | None = Header(default=None)):
     require_admin(authorization)

@@ -1,0 +1,9 @@
+{
+  "default": "professor_arya",
+  "avatars": {
+    "teacher_meera": {"name": "Teacher Meera", "role": "kindergarten_and_early_learning"},
+    "dr_arjun_mehta": {"name": "Dr. Arjun Mehta", "role": "senior_secondary_neet_higher_studies_phd"},
+    "professor_arya": {"name": "Professor Arya", "role": "general_academic_tutor"},
+    "rohan_verma": {"name": "Rohan Verma", "role": "student_support_advisor"}
+  }
+}

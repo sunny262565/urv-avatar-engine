@@ -1,21 +1,25 @@
 # URV Avatar Engine
 
 RunPod-ready streaming GPU service. It receives PCM at `/ws/avatar`, loads
-preprocessed Professor Arya assets once, and returns timestamped RGBA frames.
+preprocessed avatar assets once, and returns timestamped RGBA frames.
 It never creates an MP4.
 
-Mount MuseTalk 1.5 at `/opt/MuseTalk` with a thin `urv_stream_adapter.py` whose
+The Docker image installs MuseTalk 1.5 at `/opt/MuseTalk` and adds a thin
+`urv_stream_adapter.py` whose
 `create_renderer(avatar_dir, device)` returns an object implementing
-`render_pcm(samples, motion)`. Preprocess once into
-`avatars/professor_arya/{identity,frames,masks,latents}`.
+`render_pcm(samples, motion)`. Persistent preprocessing output belongs under
+`/runpod-volume/musetalk-results/v15/avatars/<avatar_id>` for all four registered identities.
+
+Authenticated administration routes are `GET /admin/preparation-status` and
+`POST /admin/prepare-avatars`. The POST performs GPU preprocessing and must only
+be called after the Network Volume is mounted at `/runpod-volume`.
 
 ```bash
 docker build -t urv-avatar-engine:0.1 avatar-worker
 docker run --gpus all --rm -p 8000:8000 \
  -e URV_AVATAR_TOKEN=replace-me \
  -e URV_AVATAR_RENDERER=musetalk-v1.5 \
- -v /runpod-volume/avatars:/models/avatars \
- -v /runpod-volume/MuseTalk:/opt/MuseTalk urv-avatar-engine:0.1
+ -v urv-avatar-data:/runpod-volume urv-avatar-engine:0.1
 ```
 
 Use a normal 24 GB GPU Pod first and expose port 8000 behind TLS. Frame events

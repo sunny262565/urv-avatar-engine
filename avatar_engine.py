@@ -1,4 +1,4 @@
-import asyncio, time
+import asyncio, json, time
 from pathlib import Path
 import numpy as np
 from motion import MotionEngine
@@ -11,7 +11,10 @@ class AvatarEngine:
     def load(self,avatar_id: str):
         avatar_dir=(self.root/avatar_id).resolve()
         if self.root.resolve() not in avatar_dir.parents: raise ValueError("invalid avatar id")
-        if not (avatar_dir/"metadata.json").exists(): raise FileNotFoundError("preprocessed avatar not found")
+        marker=avatar_dir/"urv_preparation.json"
+        if not marker.exists(): raise FileNotFoundError("preprocessed avatar not found")
+        metadata=json.loads(marker.read_text(encoding="utf-8"))
+        if not metadata.get("preprocessed"): raise RuntimeError("avatar preparation is incomplete")
         self.renderer.load(avatar_dir)
     async def push_audio(self,samples: np.ndarray,timestamp_ms: int):
         if self.queue.full(): self.queue.get_nowait()

@@ -1,1 +1,1 @@
-{"display_name":"Rohan Verma","role":"student_support_advisor","voice_style":"calm_helpful_professional","default_motion":{"emotion":"warm","smile":0.2,"blink":true}}
+{"id":"rohan_verma","display_name":"Rohan Verma","role":"student_support_advisor","voice_style":"calm_helpful_professional","fps":25,"width":1152,"height":768,"renderer":"musetalk-v1.5","preprocessed":false,"default_motion":{"emotion":"warm","smile":0.2,"blink":true}}

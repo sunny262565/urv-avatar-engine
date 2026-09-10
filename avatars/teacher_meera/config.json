@@ -1,1 +1,1 @@
-{"display_name":"Teacher Meera","role":"kindergarten_and_early_learning","voice_style":"warm_playful_patient","default_motion":{"emotion":"cheerful","smile":0.45,"blink":true}}
+{"id":"teacher_meera","display_name":"Teacher Meera","role":"kindergarten_and_early_learning","voice_style":"warm_playful_patient","fps":25,"width":1152,"height":768,"renderer":"musetalk-v1.5","preprocessed":false,"default_motion":{"emotion":"cheerful","smile":0.45,"blink":true}}

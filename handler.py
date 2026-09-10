@@ -5,13 +5,14 @@ from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconne
 from audio import decode_chunk
 from avatar_engine import AvatarEngine
 from preparation import REGISTERED, prepare, status as preparation_status
+from security import token_matches
 
 app=FastAPI(title="URV Avatar Engine",version="0.1.0")
 ROOT=Path(os.getenv("URV_AVATAR_ROOT","/runpod-volume/musetalk-results/v15/avatars"))
 
 def require_admin(authorization: str | None, admin_token: str | None = None) -> None:
     expected=os.getenv("URV_AVATAR_TOKEN","")
-    if not expected or (admin_token != expected and authorization != f"Bearer {expected}"):
+    if not token_matches(expected, authorization, admin_token):
         raise HTTPException(status_code=401,detail="unauthorized")
 
 @app.get("/health")
@@ -41,7 +42,9 @@ async def prepare_avatars(authorization: str | None = Header(default=None),
 @app.websocket("/ws/avatar")
 async def avatar_socket(ws: WebSocket):
     expected=os.getenv("URV_AVATAR_TOKEN","")
-    if not expected or ws.headers.get("authorization") != f"Bearer {expected}":
+    avatar_token=ws.headers.get("x-urv-avatar-token")
+    authorization=ws.headers.get("authorization")
+    if not token_matches(expected, authorization, avatar_token):
         await ws.close(code=status.WS_1008_POLICY_VIOLATION); return
     await ws.accept(); engine=None; sender=None
     async def send_frames():

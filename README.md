@@ -13,6 +13,9 @@ The Docker image installs MuseTalk 1.5 at `/opt/MuseTalk` and adds a thin
 Authenticated administration routes are `GET /admin/preparation-status` and
 `POST /admin/prepare-avatars`. The POST performs GPU preprocessing and must only
 be called after the Network Volume is mounted at `/runpod-volume`.
+Behind a RunPod load balancer, use `Authorization: Bearer <RUNPOD_API_KEY>` for
+the gateway and `X-URV-Avatar-Token: <URV_AVATAR_TOKEN>` for the application.
+The same two headers are required when opening `/ws/avatar` from the LiveKit agent.
 
 ```bash
 docker build -t urv-avatar-engine:0.1 avatar-worker

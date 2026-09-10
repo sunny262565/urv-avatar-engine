@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+avatars/**/frames/*
+avatars/**/masks/*
+avatars/**/latents/*
+models/*

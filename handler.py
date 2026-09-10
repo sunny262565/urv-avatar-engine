@@ -9,9 +9,9 @@ from preparation import REGISTERED, prepare, status as preparation_status
 app=FastAPI(title="URV Avatar Engine",version="0.1.0")
 ROOT=Path(os.getenv("URV_AVATAR_ROOT","/runpod-volume/musetalk-results/v15/avatars"))
 
-def require_admin(authorization: str | None) -> None:
+def require_admin(authorization: str | None, admin_token: str | None = None) -> None:
     expected=os.getenv("URV_AVATAR_TOKEN","")
-    if not expected or authorization != f"Bearer {expected}":
+    if not expected or (admin_token != expected and authorization != f"Bearer {expected}"):
         raise HTTPException(status_code=401,detail="unauthorized")
 
 @app.get("/health")
@@ -23,16 +23,16 @@ async def health():
 async def ping():
     return {"ok": True}
 
-
-
 @app.get("/admin/preparation-status")
-async def get_preparation_status(authorization: str | None = Header(default=None)):
-    require_admin(authorization)
+async def get_preparation_status(authorization: str | None = Header(default=None),
+                                 x_urv_avatar_token: str | None = Header(default=None)):
+    require_admin(authorization,x_urv_avatar_token)
     return {"avatars":[preparation_status(avatar_id) for avatar_id in sorted(REGISTERED)]}
 
 @app.post("/admin/prepare-avatars")
-async def prepare_avatars(authorization: str | None = Header(default=None)):
-    require_admin(authorization)
+async def prepare_avatars(authorization: str | None = Header(default=None),
+                          x_urv_avatar_token: str | None = Header(default=None)):
+    require_admin(authorization,x_urv_avatar_token)
     results=[]
     for avatar_id in sorted(REGISTERED):
         results.append(await asyncio.to_thread(prepare,avatar_id))

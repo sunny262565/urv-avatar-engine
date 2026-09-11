@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MUSETALK_HOME=/opt/MuseTalk \
     HF_HUB_DOWNLOAD_TIMEOUT=300 \
     HF_HUB_ETAG_TIMEOUT=60 \
-    HF_HUB_DISABLE_XET=1
+    HF_XET_HIGH_PERFORMANCE=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-dev ffmpeg git ca-certificates build-essential \
@@ -26,11 +26,13 @@ RUN git clone --depth 1 --branch ${MUSETALK_REF} \
     && mim install mmengine \
     && mim install "mmcv==2.0.1" \
     && mim install "mmdet==3.1.0" \
-    && mim install "mmpose==1.1.0"
+    && mim install "mmpose==1.1.0" \
+    && python3 -m pip install --no-cache-dir "huggingface_hub[hf_xet]>=0.32,<1.0"
 
 # Download each Hugging Face artifact once. Pin the face-parser repository to the
 # verified revision containing both weights, avoiding the unreliable Drive URL.
-RUN python3 - <<'PY'
+RUN --mount=type=cache,target=/root/.cache/huggingface \
+    python3 - <<'PY'
 from pathlib import Path
 import time
 from huggingface_hub import hf_hub_download

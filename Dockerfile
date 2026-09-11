@@ -2,6 +2,7 @@ FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/opt/MuseTalk \
     URV_AVATAR_ROOT=/runpod-volume/musetalk-results/v15/avatars \
     MUSETALK_HOME=/opt/MuseTalk
 
@@ -71,6 +72,7 @@ COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN cp /app/urv_stream_adapter.py /opt/MuseTalk/urv_stream_adapter.py
+RUN cd /opt/MuseTalk && python3 -c "import musetalk; from urv_stream_adapter import create_renderer"
 
 EXPOSE 8000
 HEALTHCHECK CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"

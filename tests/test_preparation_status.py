@@ -7,6 +7,23 @@ import preparation
 
 
 class PreparationStatusTests(unittest.TestCase):
+    def test_motion_video_is_preferred_over_portrait(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.png").write_bytes(b"portrait")
+            (root / "source.mp4").write_bytes(b"motion")
+            source, source_kind = preparation._select_source(root)
+            self.assertEqual(source.name, "source.mp4")
+            self.assertEqual(source_kind, "motion-video")
+
+    def test_portrait_remains_supported_as_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.png").write_bytes(b"portrait")
+            source, source_kind = preparation._select_source(root)
+            self.assertEqual(source.name, "source.png")
+            self.assertEqual(source_kind, "portrait")
+
     def test_runtime_failure_is_visible_in_status(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

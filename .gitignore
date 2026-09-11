@@ -13,3 +13,4 @@ avatars/*/latents/*
 !avatars/*/masks/.gitkeep
 !avatars/*/latents/.gitkeep
 .runpod-secrets.env
+artifacts/

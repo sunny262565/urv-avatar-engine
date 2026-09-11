@@ -21,6 +21,18 @@ def _status_path(avatar_id: str) -> Path:
     return RESULT_ROOT / avatar_id / "urv_preparation.json"
 
 
+def _select_source(avatar_source_root: Path) -> tuple[Path, str]:
+    motion_source = avatar_source_root / "source.mp4"
+    portrait_source = avatar_source_root / "source.png"
+    if motion_source.exists():
+        return motion_source, "motion-video"
+    if portrait_source.exists():
+        return portrait_source, "portrait"
+    raise FileNotFoundError(
+        f"missing avatar source: expected {motion_source} or {portrait_source}"
+    )
+
+
 def _progress_path(avatar_id: str) -> Path:
     return RESULT_ROOT / ".status" / f"{avatar_id}.json"
 
@@ -83,10 +95,9 @@ def prepare(avatar_id: str) -> dict:
 
 
 def _prepare_locked(avatar_id: str) -> dict:
-    source = SOURCE_ROOT / avatar_id / "source.png"
+    avatar_source_root = SOURCE_ROOT / avatar_id
     try:
-        if not source.exists():
-            raise FileNotFoundError(f"missing source portrait: {source}")
+        source, source_kind = _select_source(avatar_source_root)
         if not (MUSETALK_HOME / "scripts" / "realtime_inference.py").exists():
             raise RuntimeError("MuseTalk runtime is not installed")
 
@@ -105,16 +116,20 @@ def _prepare_locked(avatar_id: str) -> dict:
         temp = Path("/tmp/urv-avatar-preparation") / avatar_id
         if temp.exists():
             shutil.rmtree(temp)
-        image_dir = temp / "frames"
-        image_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, image_dir / "00000000.png")
+        if source.suffix.lower() == ".mp4":
+            video_path = source
+        else:
+            image_dir = temp / "frames"
+            image_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, image_dir / "00000000.png")
+            video_path = image_dir
         silence = temp / "silence.wav"
         config = temp / "realtime.yaml"
         _silence_wav(silence)
         config.write_text(
             f"{avatar_id}:\n"
             "  preparation: true\n"
-            f"  video_path: {image_dir}\n"
+            f"  video_path: {video_path}\n"
             "  bbox_shift: 0\n"
             "  audio_clips:\n"
             f"    calibration: {silence}\n",
@@ -153,6 +168,8 @@ def _prepare_locked(avatar_id: str) -> dict:
             "preprocessed": True,
             "renderer": "musetalk-v1.5",
             "fps": 25,
+            "source_kind": source_kind,
+            "source_file": source.name,
         }
         _status_path(avatar_id).write_text(json.dumps(result, indent=2), encoding="utf-8")
         progress = _progress_path(avatar_id)

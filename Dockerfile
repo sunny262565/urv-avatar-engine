@@ -40,6 +40,7 @@ bundles = [
     ("openai/whisper-tiny", f"{root}/whisper", ["config.json", "pytorch_model.bin", "preprocessor_config.json"]),
     ("yzd-v/DWPose", f"{root}/dwpose", ["dw-ll_ucoco_384.pth"]),
     ("ByteDance/LatentSync", f"{root}/syncnet", ["latentsync_syncnet.pt"]),
+    ("ManyOtherFunctions/face-parse-bisent", f"{root}/face-parse-bisent", ["79999_iter.pth", "resnet18-5c106cde.pth"]),
 ]
 for repository, destination, patterns in bundles:
     snapshot_download(
@@ -48,21 +49,22 @@ for repository, destination, patterns in bundles:
         allow_patterns=patterns,
     )
 PY
-RUN mkdir -p /opt/MuseTalk/models/face-parse-bisent \
-    && (test -s /opt/MuseTalk/models/face-parse-bisent/79999_iter.pth \
-        || gdown --id 154JgKpzCPW82qINcVieuPH3fZ2e0P812 -O /opt/MuseTalk/models/face-parse-bisent/79999_iter.pth) \
-    && python3 -c "from pathlib import Path; import urllib.request; p=Path('/opt/MuseTalk/models/face-parse-bisent/resnet18-5c106cde.pth'); p.exists() or urllib.request.urlretrieve('https://download.pytorch.org/models/resnet18-5c106cde.pth', p)"
-RUN test -s /opt/MuseTalk/models/musetalkV15/unet.pth \
-    && test -s /opt/MuseTalk/models/musetalkV15/musetalk.json \
-    && test -s /opt/MuseTalk/models/sd-vae/config.json \
-    && test -s /opt/MuseTalk/models/sd-vae/diffusion_pytorch_model.bin \
-    && test -s /opt/MuseTalk/models/whisper/config.json \
-    && test -s /opt/MuseTalk/models/whisper/pytorch_model.bin \
-    && test -s /opt/MuseTalk/models/whisper/preprocessor_config.json \
-    && test -s /opt/MuseTalk/models/dwpose/dw-ll_ucoco_384.pth \
-    && test -s /opt/MuseTalk/models/syncnet/latentsync_syncnet.pt \
-    && test -s /opt/MuseTalk/models/face-parse-bisent/79999_iter.pth \
-    && test -s /opt/MuseTalk/models/face-parse-bisent/resnet18-5c106cde.pth
+RUN python3 - <<'PY'
+from pathlib import Path
+
+root = Path("/opt/MuseTalk/models")
+required = [
+    "musetalkV15/unet.pth", "musetalkV15/musetalk.json",
+    "sd-vae/config.json", "sd-vae/diffusion_pytorch_model.bin",
+    "whisper/config.json", "whisper/pytorch_model.bin", "whisper/preprocessor_config.json",
+    "dwpose/dw-ll_ucoco_384.pth", "syncnet/latentsync_syncnet.pt",
+    "face-parse-bisent/79999_iter.pth", "face-parse-bisent/resnet18-5c106cde.pth",
+]
+missing = [name for name in required if not (root / name).is_file() or (root / name).stat().st_size == 0]
+if missing:
+    raise RuntimeError(f"MuseTalk model bundle is incomplete: {missing}")
+print("MuseTalk model bundle verified")
+PY
 
 WORKDIR /app
 COPY requirements.txt .

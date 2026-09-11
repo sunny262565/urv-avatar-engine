@@ -135,6 +135,7 @@ def _prepare_locked(avatar_id: str, force: bool = False) -> dict:
         temp = Path("/tmp/urv-avatar-preparation") / avatar_id
         if temp.exists():
             shutil.rmtree(temp)
+        temp.mkdir(parents=True, exist_ok=True)
         if source.suffix.lower() == ".mp4":
             video_path = source
         else:

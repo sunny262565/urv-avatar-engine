@@ -39,6 +39,13 @@ class PreparationStatusTests(unittest.TestCase):
             self.assertEqual(source.name, "source.png")
             self.assertEqual(source_kind, "portrait")
 
+    def test_silence_wav_creates_valid_calibration_audio(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "preparation" / "silence.wav"
+            path.parent.mkdir(parents=True)
+            preparation._silence_wav(path)
+            self.assertGreater(path.stat().st_size, 44)
+
     def test_runtime_failure_is_visible_in_status(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

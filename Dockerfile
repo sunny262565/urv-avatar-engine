@@ -32,6 +32,7 @@ RUN git clone --depth 1 --branch ${MUSETALK_REF} \
 # verified revision containing both weights, avoiding the unreliable Drive URL.
 RUN python3 - <<'PY'
 from pathlib import Path
+import time
 from huggingface_hub import hf_hub_download
 
 root = Path("/opt/MuseTalk/models")
@@ -50,12 +51,25 @@ items = [
 ]
 for repository, filename, destination, revision in items:
     destination.mkdir(parents=True, exist_ok=True)
-    hf_hub_download(
-        repo_id=repository,
-        filename=filename,
-        local_dir=str(destination),
-        revision=revision,
-    )
+    for attempt in range(1, 6):
+        try:
+            hf_hub_download(
+                repo_id=repository,
+                filename=filename,
+                local_dir=str(destination),
+                revision=revision,
+            )
+            break
+        except Exception:
+            if attempt == 5:
+                raise
+            delay = 2 ** attempt
+            print(
+                f"Download failed for {repository}/{filename}; "
+                f"retrying in {delay}s ({attempt}/5)",
+                flush=True,
+            )
+            time.sleep(delay)
 PY
 RUN python3 - <<'PY'
 from pathlib import Path

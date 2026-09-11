@@ -4,7 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/opt/MuseTalk \
     URV_AVATAR_ROOT=/runpod-volume/musetalk-results/v15/avatars \
-    MUSETALK_HOME=/opt/MuseTalk
+    MUSETALK_HOME=/opt/MuseTalk \
+    HF_HUB_DOWNLOAD_TIMEOUT=120 \
+    HF_XET_MAX_CONCURRENT_DOWNLOADS=2
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-dev ffmpeg git ca-certificates build-essential \
@@ -19,37 +21,45 @@ ARG MUSETALK_REF=main
 RUN git clone --depth 1 --branch ${MUSETALK_REF} \
       https://github.com/TMElyralab/MuseTalk.git /opt/MuseTalk \
     && python3 -m pip install --no-cache-dir -r /opt/MuseTalk/requirements.txt \
+    && python3 -m pip install --no-cache-dir hf-xet \
     && python3 -m pip install --no-cache-dir -U openmim \
     && mim install mmengine \
     && mim install "mmcv==2.0.1" \
     && mim install "mmdet==3.1.0" \
     && mim install "mmpose==1.1.0"
 
-# Keep weights in the immutable image to avoid downloading them after scale-to-zero.
-RUN cd /opt/MuseTalk && sh ./download_weights.sh
-
-# MuseTalk's upstream downloader has changed over time and some revisions omit
-# individual dependency files. Fetch every runtime bundle idempotently and fail
-# the image build if any file needed by real-time preprocessing is unavailable.
+# Download each required runtime artifact exactly once. This avoids the previous
+# duplicate download_weights.sh + snapshot_download flow, which was the failing
+# RunPod build step and also re-downloaded several GB of Xet-backed files.
 RUN python3 - <<'PY'
-from huggingface_hub import snapshot_download
+from pathlib import Path
+from huggingface_hub import hf_hub_download
 
-root = "/opt/MuseTalk/models"
-bundles = [
-    ("TMElyralab/MuseTalk", root, ["musetalkV15/unet.pth", "musetalkV15/musetalk.json"]),
-    ("stabilityai/sd-vae-ft-mse", f"{root}/sd-vae", ["config.json", "diffusion_pytorch_model.bin"]),
-    ("openai/whisper-tiny", f"{root}/whisper", ["config.json", "pytorch_model.bin", "preprocessor_config.json"]),
-    ("yzd-v/DWPose", f"{root}/dwpose", ["dw-ll_ucoco_384.pth"]),
-    ("ByteDance/LatentSync", f"{root}/syncnet", ["latentsync_syncnet.pt"]),
-    ("ManyOtherFunctions/face-parse-bisent", f"{root}/face-parse-bisent", ["79999_iter.pth", "resnet18-5c106cde.pth"]),
+root = Path("/opt/MuseTalk/models")
+items = [
+    ("TMElyralab/MuseTalk", "musetalkV15/unet.pth", root),
+    ("TMElyralab/MuseTalk", "musetalkV15/musetalk.json", root),
+    ("stabilityai/sd-vae-ft-mse", "config.json", root / "sd-vae"),
+    ("stabilityai/sd-vae-ft-mse", "diffusion_pytorch_model.bin", root / "sd-vae"),
+    ("openai/whisper-tiny", "config.json", root / "whisper"),
+    ("openai/whisper-tiny", "pytorch_model.bin", root / "whisper"),
+    ("openai/whisper-tiny", "preprocessor_config.json", root / "whisper"),
+    ("yzd-v/DWPose", "dw-ll_ucoco_384.pth", root / "dwpose"),
+    ("ByteDance/LatentSync", "latentsync_syncnet.pt", root / "syncnet"),
+    ("ManyOtherFunctions/face-parse-bisent", "79999_iter.pth", root / "face-parse-bisent"),
+    ("ManyOtherFunctions/face-parse-bisent", "resnet18-5c106cde.pth", root / "face-parse-bisent"),
 ]
-for repository, destination, patterns in bundles:
-    snapshot_download(
-        repo_id=repository,
-        local_dir=destination,
-        allow_patterns=patterns,
+
+for repo_id, filename, destination in items:
+    destination.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading {repo_id}:{filename} -> {destination}", flush=True)
+    hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        local_dir=str(destination),
     )
 PY
+
 RUN python3 - <<'PY'
 from pathlib import Path
 
@@ -72,7 +82,7 @@ COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN cp /app/urv_stream_adapter.py /opt/MuseTalk/urv_stream_adapter.py
-RUN cd /opt/MuseTalk && python3 -c "import musetalk; from urv_stream_adapter import create_renderer"
+RUN cd /opt/MuseTalk && python3 -c "import musetalk; from urv_stream_adapter import create_renderer; print('MuseTalk runtime import OK')"
 
 EXPOSE 8000
 HEALTHCHECK CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"

@@ -27,6 +27,12 @@ RUN git clone --depth 1 --branch ${MUSETALK_REF} \
 # Keep weights in the immutable image to avoid downloading them after scale-to-zero.
 RUN cd /opt/MuseTalk && sh ./download_weights.sh
 
+# MuseTalk's upstream downloader has changed over time and some revisions do
+# not fetch the DWPose checkpoint.  Re-fetch it explicitly when absent, then
+# fail the image build if the checkpoint is still unavailable.
+RUN python3 -c "from pathlib import Path; import urllib.request; p=Path('/opt/MuseTalk/models/dwpose/dw-ll_ucoco_384.pth'); p.parent.mkdir(parents=True, exist_ok=True); p.exists() or urllib.request.urlretrieve('https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.pth', p)" \
+    && test -s /opt/MuseTalk/models/dwpose/dw-ll_ucoco_384.pth
+
 WORKDIR /app
 COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt

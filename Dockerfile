@@ -21,16 +21,16 @@ ARG MUSETALK_REF=main
 RUN git clone --depth 1 --branch ${MUSETALK_REF} \
       https://github.com/TMElyralab/MuseTalk.git /opt/MuseTalk \
     && python3 -m pip install --no-cache-dir -r /opt/MuseTalk/requirements.txt \
-    && python3 -m pip install --no-cache-dir hf-xet \
+    && python3 -m pip install --no-cache-dir hf-xet gdown \
     && python3 -m pip install --no-cache-dir -U openmim \
     && mim install mmengine \
     && mim install "mmcv==2.0.1" \
     && mim install "mmdet==3.1.0" \
     && mim install "mmpose==1.1.0"
 
-# Download each required runtime artifact exactly once. This avoids the previous
-# duplicate download_weights.sh + snapshot_download flow, which was the failing
-# RunPod build step and also re-downloaded several GB of Xet-backed files.
+# Download each Hugging Face artifact once. The two face-parser weights are not
+# hosted in the Hugging Face repository; upstream MuseTalk downloads them from
+# Google Drive and PyTorch instead, so they are handled by the following layer.
 RUN python3 - <<'PY'
 from pathlib import Path
 from huggingface_hub import hf_hub_download
@@ -46,20 +46,20 @@ items = [
     ("openai/whisper-tiny", "preprocessor_config.json", root / "whisper"),
     ("yzd-v/DWPose", "dw-ll_ucoco_384.pth", root / "dwpose"),
     ("ByteDance/LatentSync", "latentsync_syncnet.pt", root / "syncnet"),
-    ("ManyOtherFunctions/face-parse-bisent", "79999_iter.pth", root / "face-parse-bisent"),
-    ("ManyOtherFunctions/face-parse-bisent", "resnet18-5c106cde.pth", root / "face-parse-bisent"),
 ]
-
-for repo_id, filename, destination in items:
+for repository, filename, destination in items:
     destination.mkdir(parents=True, exist_ok=True)
-    print(f"Downloading {repo_id}:{filename} -> {destination}", flush=True)
     hf_hub_download(
-        repo_id=repo_id,
+        repo_id=repository,
         filename=filename,
         local_dir=str(destination),
     )
 PY
 
+RUN mkdir -p /opt/MuseTalk/models/face-parse-bisent \
+    && gdown --id 154JgKpzCPW82qINcVieuPH3fZ2e0P812 \
+      -O /opt/MuseTalk/models/face-parse-bisent/79999_iter.pth \
+    && python3 -c "from pathlib import Path; import urllib.request; p=Path('/opt/MuseTalk/models/face-parse-bisent/resnet18-5c106cde.pth'); urllib.request.urlretrieve('https://download.pytorch.org/models/resnet18-5c106cde.pth', p)"
 RUN python3 - <<'PY'
 from pathlib import Path
 
@@ -82,7 +82,7 @@ COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN cp /app/urv_stream_adapter.py /opt/MuseTalk/urv_stream_adapter.py
-RUN cd /opt/MuseTalk && python3 -c "import musetalk; from urv_stream_adapter import create_renderer; print('MuseTalk runtime import OK')"
+RUN cd /opt/MuseTalk && python3 -c "import musetalk; from urv_stream_adapter import create_renderer"
 
 EXPOSE 8000
 HEALTHCHECK CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"

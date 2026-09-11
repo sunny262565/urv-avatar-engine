@@ -20,8 +20,15 @@ class MuseTalkRenderer(BaseAvatarRenderer):
         checkout=Path(os.environ.get("MUSETALK_HOME","/opt/MuseTalk"))
         adapter=checkout/"urv_stream_adapter.py"
         if not adapter.exists(): raise RuntimeError(f"MuseTalk streaming adapter missing: {adapter}")
-        spec=importlib.util.spec_from_file_location("urv_musetalk",adapter)
-        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        # MuseTalk imports its DWPose configuration using paths relative to the
+        # checkout, so the adapter must be imported with that checkout as cwd.
+        previous_cwd=os.getcwd()
+        try:
+            os.chdir(checkout)
+            spec=importlib.util.spec_from_file_location("urv_musetalk",adapter)
+            module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        finally:
+            os.chdir(previous_cwd)
         self.engine=module.create_renderer(avatar_dir=avatar_dir,device=os.getenv("URV_DEVICE","cuda"))
     def render(self,audio: np.ndarray,motion: dict) -> list[np.ndarray]:
         if self.engine is None: raise RuntimeError("renderer not loaded")

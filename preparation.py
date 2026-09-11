@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import threading
 import time
+import uuid
 import wave
 from pathlib import Path
 
@@ -56,12 +57,12 @@ def _write_progress(avatar_id: str, state: str, **details) -> dict:
 def status(avatar_id: str) -> dict:
     if avatar_id not in REGISTERED:
         raise ValueError("unknown avatar_id")
-    path = _status_path(avatar_id)
-    if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
     progress = _progress_path(avatar_id)
     if progress.exists():
         return json.loads(progress.read_text(encoding="utf-8"))
+    path = _status_path(avatar_id)
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
     return {"avatar_id": avatar_id, "state": "missing", "preprocessed": False}
 
 
@@ -82,20 +83,37 @@ def _silence_wav(path: Path, seconds: float = 0.5, sample_rate: int = 16000) -> 
         audio.writeframes(b"\x00\x00" * int(seconds * sample_rate))
 
 
-def prepare(avatar_id: str) -> dict:
+def _activate_staged(staged: Path, target: Path) -> None:
+    backup = target.parent / f".backup-{target.name}-{uuid.uuid4().hex}"
+    had_target = target.exists()
+    if had_target:
+        target.replace(backup)
+    try:
+        staged.replace(target)
+    except Exception:
+        if had_target and backup.exists() and not target.exists():
+            backup.replace(target)
+        raise
+    if backup.exists():
+        shutil.rmtree(backup)
+
+
+def prepare(avatar_id: str, force: bool = False) -> dict:
     if avatar_id not in REGISTERED:
         raise ValueError("unknown avatar_id")
     lock = _LOCKS[avatar_id]
     if not lock.acquire(blocking=False):
         return status(avatar_id)
     try:
-        return _prepare_locked(avatar_id)
+        return _prepare_locked(avatar_id, force=force)
     finally:
         lock.release()
 
 
-def _prepare_locked(avatar_id: str) -> dict:
+def _prepare_locked(avatar_id: str, force: bool = False) -> dict:
     avatar_source_root = SOURCE_ROOT / avatar_id
+    staging_key = f"staging-{avatar_id}-{uuid.uuid4().hex}"
+    staged = RESULT_ROOT / staging_key
     try:
         source, source_kind = _select_source(avatar_source_root)
         if not (MUSETALK_HOME / "scripts" / "realtime_inference.py").exists():
@@ -107,9 +125,10 @@ def _prepare_locked(avatar_id: str) -> dict:
             marker = _status_path(avatar_id)
             if marker.exists():
                 current = json.loads(marker.read_text(encoding="utf-8"))
-                if current.get("preprocessed"):
+                if current.get("preprocessed") and not force:
                     return current
-            raise RuntimeError("partial preparation exists; remove it explicitly before retrying")
+            elif not force:
+                raise RuntimeError("partial preparation exists; retry with force=true")
 
         _write_progress(avatar_id, "running")
 
@@ -127,7 +146,7 @@ def _prepare_locked(avatar_id: str) -> dict:
         config = temp / "realtime.yaml"
         _silence_wav(silence)
         config.write_text(
-            f"{avatar_id}:\n"
+            f"{staging_key}:\n"
             "  preparation: true\n"
             f"  video_path: {video_path}\n"
             "  bbox_shift: 0\n"
@@ -158,7 +177,7 @@ def _prepare_locked(avatar_id: str) -> dict:
             raise RuntimeError(completed.stderr[-4000:] or completed.stdout[-4000:])
 
         required = ["coords.pkl", "latents.pt", "mask_coords.pkl", "full_imgs", "mask"]
-        missing = [name for name in required if not (target / name).exists()]
+        missing = [name for name in required if not (staged / name).exists()]
         if missing:
             raise RuntimeError(f"MuseTalk preparation missing artifacts: {missing}")
 
@@ -170,12 +189,18 @@ def _prepare_locked(avatar_id: str) -> dict:
             "fps": 25,
             "source_kind": source_kind,
             "source_file": source.name,
+            "replaced_existing": target.exists(),
         }
-        _status_path(avatar_id).write_text(json.dumps(result, indent=2), encoding="utf-8")
+        (staged / "urv_preparation.json").write_text(
+            json.dumps(result, indent=2), encoding="utf-8"
+        )
+        _activate_staged(staged, target)
         progress = _progress_path(avatar_id)
         if progress.exists():
             progress.unlink()
         return result
     except Exception as exc:
+        if staged.exists():
+            shutil.rmtree(staged)
         _write_progress(avatar_id, "failed", error=str(exc)[-2000:])
         raise

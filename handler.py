@@ -31,12 +31,18 @@ async def get_preparation_status(authorization: str | None = Header(default=None
     return {"avatars":[preparation_status(avatar_id) for avatar_id in sorted(REGISTERED)]}
 
 @app.post("/admin/prepare-avatars")
-async def prepare_avatars(authorization: str | None = Header(default=None),
+async def prepare_avatars(avatar_id: str | None = None, force: bool = False,
+                          authorization: str | None = Header(default=None),
                           x_urv_avatar_token: str | None = Header(default=None)):
     require_admin(authorization,x_urv_avatar_token)
+    if avatar_id is not None and avatar_id not in REGISTERED:
+        raise HTTPException(status_code=400,detail="unknown avatar_id")
+    if force and avatar_id is None:
+        raise HTTPException(status_code=400,detail="force=true requires avatar_id")
     results=[]
-    for avatar_id in sorted(REGISTERED):
-        results.append(await asyncio.to_thread(prepare,avatar_id))
+    selected=[avatar_id] if avatar_id else sorted(REGISTERED)
+    for selected_id in selected:
+        results.append(await asyncio.to_thread(prepare,selected_id,force))
     return {"avatars":results}
 
 @app.websocket("/ws/avatar")

@@ -7,6 +7,21 @@ import preparation
 
 
 class PreparationStatusTests(unittest.TestCase):
+    def test_staged_activation_replaces_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "professor_arya"
+            staged = root / "staging-professor_arya-test"
+            target.mkdir()
+            staged.mkdir()
+            (target / "old.txt").write_text("old", encoding="utf-8")
+            (staged / "new.txt").write_text("new", encoding="utf-8")
+            preparation._activate_staged(staged, target)
+            self.assertFalse(staged.exists())
+            self.assertFalse((target / "old.txt").exists())
+            self.assertEqual((target / "new.txt").read_text(encoding="utf-8"), "new")
+            self.assertFalse(list(root.glob(".backup-*")))
+
     def test_motion_video_is_preferred_over_portrait(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

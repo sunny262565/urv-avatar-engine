@@ -21,45 +21,42 @@ ARG MUSETALK_REF=main
 RUN git clone --depth 1 --branch ${MUSETALK_REF} \
       https://github.com/TMElyralab/MuseTalk.git /opt/MuseTalk \
     && python3 -m pip install --no-cache-dir -r /opt/MuseTalk/requirements.txt \
-    && python3 -m pip install --no-cache-dir hf-xet gdown \
+    && python3 -m pip install --no-cache-dir hf-xet \
     && python3 -m pip install --no-cache-dir -U openmim \
     && mim install mmengine \
     && mim install "mmcv==2.0.1" \
     && mim install "mmdet==3.1.0" \
     && mim install "mmpose==1.1.0"
 
-# Download each Hugging Face artifact once. The two face-parser weights are not
-# hosted in the Hugging Face repository; upstream MuseTalk downloads them from
-# Google Drive and PyTorch instead, so they are handled by the following layer.
+# Download each Hugging Face artifact once. Pin the face-parser repository to the
+# verified revision containing both weights, avoiding the unreliable Drive URL.
 RUN python3 - <<'PY'
 from pathlib import Path
 from huggingface_hub import hf_hub_download
 
 root = Path("/opt/MuseTalk/models")
 items = [
-    ("TMElyralab/MuseTalk", "musetalkV15/unet.pth", root),
-    ("TMElyralab/MuseTalk", "musetalkV15/musetalk.json", root),
-    ("stabilityai/sd-vae-ft-mse", "config.json", root / "sd-vae"),
-    ("stabilityai/sd-vae-ft-mse", "diffusion_pytorch_model.bin", root / "sd-vae"),
-    ("openai/whisper-tiny", "config.json", root / "whisper"),
-    ("openai/whisper-tiny", "pytorch_model.bin", root / "whisper"),
-    ("openai/whisper-tiny", "preprocessor_config.json", root / "whisper"),
-    ("yzd-v/DWPose", "dw-ll_ucoco_384.pth", root / "dwpose"),
-    ("ByteDance/LatentSync", "latentsync_syncnet.pt", root / "syncnet"),
+    ("TMElyralab/MuseTalk", "musetalkV15/unet.pth", root, None),
+    ("TMElyralab/MuseTalk", "musetalkV15/musetalk.json", root, None),
+    ("stabilityai/sd-vae-ft-mse", "config.json", root / "sd-vae", None),
+    ("stabilityai/sd-vae-ft-mse", "diffusion_pytorch_model.bin", root / "sd-vae", None),
+    ("openai/whisper-tiny", "config.json", root / "whisper", None),
+    ("openai/whisper-tiny", "pytorch_model.bin", root / "whisper", None),
+    ("openai/whisper-tiny", "preprocessor_config.json", root / "whisper", None),
+    ("yzd-v/DWPose", "dw-ll_ucoco_384.pth", root / "dwpose", None),
+    ("ByteDance/LatentSync", "latentsync_syncnet.pt", root / "syncnet", None),
+    ("ManyOtherFunctions/face-parse-bisent", "79999_iter.pth", root / "face-parse-bisent", "0073b233a5a3c4b1377d4dbf49245017938a72b5"),
+    ("ManyOtherFunctions/face-parse-bisent", "resnet18-5c106cde.pth", root / "face-parse-bisent", "0073b233a5a3c4b1377d4dbf49245017938a72b5"),
 ]
-for repository, filename, destination in items:
+for repository, filename, destination, revision in items:
     destination.mkdir(parents=True, exist_ok=True)
     hf_hub_download(
         repo_id=repository,
         filename=filename,
         local_dir=str(destination),
+        revision=revision,
     )
 PY
-
-RUN mkdir -p /opt/MuseTalk/models/face-parse-bisent \
-    && gdown --id 154JgKpzCPW82qINcVieuPH3fZ2e0P812 \
-      -O /opt/MuseTalk/models/face-parse-bisent/79999_iter.pth \
-    && python3 -c "from pathlib import Path; import urllib.request; p=Path('/opt/MuseTalk/models/face-parse-bisent/resnet18-5c106cde.pth'); urllib.request.urlretrieve('https://download.pytorch.org/models/resnet18-5c106cde.pth', p)"
 RUN python3 - <<'PY'
 from pathlib import Path
 

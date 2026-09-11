@@ -5,8 +5,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONPATH=/opt/MuseTalk \
     URV_AVATAR_ROOT=/runpod-volume/musetalk-results/v15/avatars \
     MUSETALK_HOME=/opt/MuseTalk \
-    HF_HUB_DOWNLOAD_TIMEOUT=120 \
-    HF_XET_MAX_CONCURRENT_DOWNLOADS=2
+    HF_HUB_DOWNLOAD_TIMEOUT=300 \
+    HF_HUB_ETAG_TIMEOUT=60 \
+    HF_HUB_DISABLE_XET=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-dev ffmpeg git ca-certificates build-essential \
@@ -21,7 +22,6 @@ ARG MUSETALK_REF=main
 RUN git clone --depth 1 --branch ${MUSETALK_REF} \
       https://github.com/TMElyralab/MuseTalk.git /opt/MuseTalk \
     && python3 -m pip install --no-cache-dir -r /opt/MuseTalk/requirements.txt \
-    && python3 -m pip install --no-cache-dir hf-xet \
     && python3 -m pip install --no-cache-dir -U openmim \
     && mim install mmengine \
     && mim install "mmcv==2.0.1" \
@@ -51,7 +51,7 @@ items = [
 ]
 for repository, filename, destination, revision in items:
     destination.mkdir(parents=True, exist_ok=True)
-    for attempt in range(1, 6):
+    for attempt in range(1, 11):
         try:
             hf_hub_download(
                 repo_id=repository,
@@ -61,12 +61,12 @@ for repository, filename, destination, revision in items:
             )
             break
         except Exception:
-            if attempt == 5:
+            if attempt == 10:
                 raise
-            delay = 2 ** attempt
+            delay = min(60, 2 ** attempt)
             print(
                 f"Download failed for {repository}/{filename}; "
-                f"retrying in {delay}s ({attempt}/5)",
+                f"retrying in {delay}s ({attempt}/10)",
                 flush=True,
             )
             time.sleep(delay)

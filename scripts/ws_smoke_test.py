@@ -18,7 +18,14 @@ async def run(url: str, api_key: str, avatar_token: str, avatar_id: str, timeout
         "X-URV-Avatar-Token": avatar_token,
     }
     started = time.perf_counter()
-    async with connect(url, additional_headers=headers, max_size=32 * 1024 * 1024) as socket:
+    async with connect(
+        url,
+        additional_headers=headers,
+        max_size=32 * 1024 * 1024,
+        open_timeout=timeout,
+        proxy=None,
+        compression=None,
+    ) as socket:
         session_id = f"smoke-{int(time.time())}"
         await socket.send(json.dumps({
             "type": "start", "session_id": session_id, "avatar_id": avatar_id, "fps": 25,

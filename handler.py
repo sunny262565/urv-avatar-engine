@@ -54,12 +54,15 @@ async def avatar_socket(ws: WebSocket):
         await ws.close(code=status.WS_1008_POLICY_VIOLATION); return
     await ws.accept(); engine=None; sender=None
     async def send_frames():
+        next_frame_at=time.perf_counter()
         async for seq,ts,rgba in engine.frames():
             height,width=rgba.shape[:2]
             await ws.send_json({"type":"frame","sequence":seq,"timestamp_ms":ts,"width":width,"height":height,
                 "rgba":base64.b64encode(rgba.tobytes()).decode("ascii"),"fps":engine.renderer.fps,
                 "frame_generation_ms":engine.renderer.last_ms,
                 "vram_mb":round(torch.cuda.memory_allocated()/1048576,1) if torch.cuda.is_available() else 0})
+            next_frame_at += 1 / engine.fps
+            await asyncio.sleep(max(0, next_frame_at-time.perf_counter()))
     try:
         while True:
             event=json.loads(await ws.receive_text())
